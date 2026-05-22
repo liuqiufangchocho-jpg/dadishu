@@ -408,13 +408,13 @@ body{
     <p class="setup-subtitle">汉语词语游戏 · 教师配置</p>
 
     <div class="form-group">
-      <label>🎯 目标词语（必填）</label>
-      <small>用空格、逗号或换行分隔，至少输入2个词语</small>
-      <textarea id="inp-target" placeholder="例：苹果 香蕉 橙子 西瓜 草莓"></textarea>
+      <label>🎯 目标字词（必填）</label>
+      <small>用空格、逗号或换行分隔，至少输入1个词语或汉字</small>
+      <textarea id="inp-target" placeholder="例：苹果 香蕉 橙子"></textarea>
     </div>
 
     <div class="form-group">
-      <label>❌ 干扰词语 <span class="opt">（选填）</span></label>
+      <label>❌ 干扰字词 <span class="opt">（选填）</span></label>
       <small>留空则自动用其他目标词语作为干扰项</small>
       <textarea id="inp-distract" placeholder="例：汽车 火车 飞机"></textarea>
     </div>
@@ -588,7 +588,7 @@ function parseWords(str) {
 
 function buildConfig() {
   const tWords = parseWords(document.getElementById('inp-target').value);
-  if (tWords.length < 2) { alert('请至少输入2个目标词语！'); return null; }
+  if (tWords.length < 1) { alert('请至少输入1个目标词语！'); return null; }
   const dWords = parseWords(document.getElementById('inp-distract').value);
   return {
     targetWords:   tWords,
