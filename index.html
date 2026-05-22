@@ -402,7 +402,7 @@ body{
 </div>
 
 <!-- ===== SCREEN: TEACHER ===== -->
-<div id="screen-teacher" class="screen active">
+<div id="screen-teacher" class="screen">
   <div class="setup-card">
     <h1>🐹 打地鼠</h1>
     <p class="setup-subtitle">汉语词语游戏 · 教师配置</p>
@@ -526,7 +526,7 @@ const HOLES=9;
 // =============================================
 // BOOT
 // =============================================
-window.addEventListener('load', () => {
+document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(location.search);
   if (params.has('g')) {
     try {
