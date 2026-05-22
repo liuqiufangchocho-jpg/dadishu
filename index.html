@@ -319,7 +319,9 @@ body{
   transition:transform 0.14s;
 }
 .btn-copy:hover{transform:scale(1.04);}
-.copy-confirm{font-size:0.79rem;color:#43A047;height:15px;margin-bottom:11px;}
+//下面一行解决‘已复制链接’文字居中并放大2倍问题
+.copy-confirm{font-size:1.58rem;color:#43A047;height:36px;margin-bottom:11px;text-align:center;}
+
 .share-note{
   background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;
   padding:9px 13px;font-size:0.79rem;color:#795548;margin-bottom:14px;
@@ -331,6 +333,11 @@ body{
 .btn-close-modal:hover{background:#e0e0e0;}
 
 /* ===== MALLET CURSOR ===== */
+//下面三行解决HUD区域仍显示锤子、按钮点不到问题
+#hud{cursor:default!important;}
+#hud-back{cursor:pointer!important;}
+#speak-btn{cursor:pointer!important;}
+
 #mallet-cursor{
   position:fixed;pointer-events:none;z-index:9999;
   width:58px;height:58px;
@@ -403,7 +410,7 @@ body{
     <div class="form-group">
       <label>🎯 目标词语（必填）</label>
       <small>用空格、逗号或换行分隔，至少输入2个词语</small>
-      <textarea id="inp-target" placeholder="例：苹果 香蕉 橙子 西瓜 草莓">苹果 香蕉 橙子 西瓜 草莓 葡萄</textarea>
+      <textarea id="inp-target" placeholder="例：苹果 香蕉 橙子 西瓜 草莓"></textarea>
     </div>
 
     <div class="form-group">
@@ -462,7 +469,6 @@ body{
   </div>
   <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
   <div id="target-banner">
-    <div id="target-label">Hit the mole holding 👇</div>
     <div id="target-row">
       <span id="target-word">—</span>
       <span id="speech-wave" class="hidden">
@@ -618,7 +624,9 @@ function openShareModal() {
   const dArr = c.distractWords.join(',') === c.targetWords.join(',') ? [] : c.distractWords;
   const raw = { t: c.targetWords, d: dArr, time: c.time };
   const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(raw))));
-  const url = location.href.split('?')[0] + '?g=' + encoded;
+//下面1行解决分享链接打开是教师界面而非游戏界面问题
+const url = location.href.split('?')[0] + '?g=' + encodeURIComponent(encoded);
+
   document.getElementById('share-url-input').value = url;
   document.getElementById('copy-confirm').textContent = '';
   document.getElementById('modal-share').classList.add('open');
