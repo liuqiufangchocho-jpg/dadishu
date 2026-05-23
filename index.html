@@ -18,6 +18,14 @@ body{
 .screen{display:none;min-height:100vh;}
 .screen.active{display:flex;align-items:center;justify-content:center;padding:20px;}
 
+.studio-name{
+  font-family:'Fredoka One',cursive;
+  font-size:1.1rem;
+  color:#9DB8CC;
+  letter-spacing:3px;
+  margin-bottom:8px;
+}
+
 /* ===== TEACHER SETUP ===== */
 #screen-teacher{background:linear-gradient(135deg,#e8f5e9 0%,#f1f8e9 50%,#e3f2fd 100%);}
 .setup-card{
@@ -441,7 +449,8 @@ body{
 <!-- ===== SCREEN: STUDENT START ===== -->
 <div id="screen-student-start" class="screen">
   <div class="student-card">
-    <span class="student-mole-icon">🐹</span>
+<div class="studio-name">TEACHER LIU'S CHINESE LEARNING STUDIO</div>
+<span class="student-mole-icon">🐹</span>
     <h1>Whack-a-Mole!</h1>
     <div class="word-chips" id="student-word-chips"></div>
 
