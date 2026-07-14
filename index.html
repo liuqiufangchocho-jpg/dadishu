@@ -369,6 +369,19 @@ body{
 /* 下面一行解决‘已复制链接’文字居中并放大2倍问题 */
 .copy-confirm{font-size:1.58rem;color:#43A047;height:36px;margin-bottom:11px;text-align:center;}
 
+
+.share-task-code{
+  display:none;
+  background:#E8F5E9;
+  border:1px solid #A5D6A7;
+  border-radius:8px;
+  padding:9px 13px;
+  font-size:0.82rem;
+  color:#2E7D32;
+  margin-bottom:12px;
+  line-height:1.55;
+}
+
 .share-note{
   background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;
   padding:9px 13px;font-size:0.79rem;color:#795548;margin-bottom:14px;
@@ -578,6 +591,7 @@ body{
       <input type="text" id="share-url-input" readonly/>
       <button class="btn-copy" onclick="copyLink()">复制</button>
     </div>
+    <div class="share-task-code" id="share-task-code"></div>
     <div class="copy-confirm" id="copy-confirm"></div>
     <button class="btn-close-modal" onclick="closeShareModal()">关闭</button>
   </div>
@@ -937,8 +951,10 @@ async function openShareModal() {
     document.getElementById('share-url-input').value = url;
     document.getElementById('copy-confirm').textContent = '';
     const codeBox = document.getElementById('share-task-code');
-    codeBox.style.display = 'block';
-    codeBox.innerHTML = `Task ID: <strong>${escapeHtml(taskCode)}</strong><br>学生打开链接后将先选择班级和姓名。`;
+    if (codeBox) {
+      codeBox.style.display = 'block';
+      codeBox.innerHTML = `Task ID: <strong>${escapeHtml(taskCode)}</strong><br>学生打开链接后将先选择班级和姓名。`;
+    }
     document.getElementById('modal-share').classList.add('open');
   } catch (err) {
     console.error(err);
