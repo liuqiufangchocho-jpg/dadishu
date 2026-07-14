@@ -115,6 +115,45 @@ body{
 .btn-play:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 10px 28px rgba(229,57,53,0.46);}
 .btn-play:active{transform:scale(0.97);}
 
+
+/* ===== TASK / STUDENT IDENTITY ===== */
+.task-divider{
+  height:1px;background:linear-gradient(90deg,transparent,#D7EAD8,transparent);
+  margin:22px 0 18px;
+}
+.student-list-preview{
+  background:#F7FBF7;border:1px dashed #A5D6A7;border-radius:10px;
+  padding:9px 12px;color:#4E6B50;font-size:0.82rem;line-height:1.6;
+  display:none;margin-top:7px;
+}
+.task-info-box{
+  background:#F1F8E9;border:1px solid #C8E6C9;border-radius:14px;
+  padding:12px 14px;margin:0 0 16px;text-align:left;color:#2E7D32;font-size:0.88rem;
+}
+.task-info-box strong{color:#1B5E20;}
+.identity-panel{
+  background:#FFF8E1;border:1px solid #FFE082;border-radius:16px;
+  padding:14px;margin:0 0 18px;text-align:left;
+}
+.identity-panel.hidden{display:none;}
+.identity-panel label{
+  display:block;font-weight:700;color:#5D4037;font-size:0.88rem;margin:8px 0 5px;
+}
+.identity-panel select{
+  width:100%;border:2px solid #FFE082;border-radius:10px;padding:9px 10px;
+  font-family:'Noto Sans SC',sans-serif;font-size:0.95rem;background:#fff;outline:none;color:#333;
+}
+.identity-panel select:focus{border-color:#FFB300;}
+.task-loading{
+  background:#fff;border-radius:18px;padding:18px;margin-top:14px;color:#2E7D32;
+  box-shadow:0 4px 18px rgba(0,0,0,0.08);font-weight:700;
+}
+.share-code{
+  background:#E8F5E9;border:1px solid #A5D6A7;border-radius:9px;
+  padding:9px 12px;margin:9px 0 12px;color:#1B5E20;font-size:0.82rem;word-break:break-all;
+}
+.share-code strong{font-size:0.95rem;}
+
 /* ===== GAME SCREEN ===== */
 #screen-game{display:none;flex-direction:column;padding:0;align-items:stretch;min-height:100vh;}
 #screen-game.active{display:flex;}
@@ -327,7 +366,7 @@ body{
   transition:transform 0.14s;
 }
 .btn-copy:hover{transform:scale(1.04);}
-//下面一行解决‘已复制链接’文字居中并放大2倍问题
+/* 下面一行解决‘已复制链接’文字居中并放大2倍问题 */
 .copy-confirm{font-size:1.58rem;color:#43A047;height:36px;margin-bottom:11px;text-align:center;}
 
 .share-note{
@@ -341,7 +380,7 @@ body{
 .btn-close-modal:hover{background:#e0e0e0;}
 
 /* ===== MALLET CURSOR ===== */
-//下面三行解决HUD区域仍显示锤子、按钮点不到问题
+/* 下面三行解决HUD区域仍显示锤子、按钮点不到问题 */
 #hud{cursor:default!important;}
 #hud-back{cursor:pointer!important;}
 #speak-btn{cursor:pointer!important;}
@@ -416,6 +455,13 @@ body{
     <p class="setup-subtitle">汉语词语游戏 · 教师配置</p>
 
     <div class="form-group">
+      <label>📝 任务标题 <span class="opt">选填</span></label>
+      <small>用于后续在门户网页 A 的数据统计模块中识别任务</small>
+      <textarea id="inp-task-title" placeholder="例：3A 水果词语复习" style="min-height:48px;"></textarea>
+    </div>
+
+
+    <div class="form-group">
       <label>🎯 目标字词（必填）</label>
       <small>用空格、逗号或换行分隔，至少输入1个词语或汉字</small>
       <textarea id="inp-target" placeholder="例：苹果 香蕉 橙子"></textarea>
@@ -425,6 +471,16 @@ body{
       <label>❌ 干扰字词（选填）</label>
       <small>留空则自动用其他目标词语作为干扰项</small>
       <textarea id="inp-distract" placeholder="例：汽车 火车 飞机"></textarea>
+    </div>
+
+
+    <div class="task-divider"></div>
+
+    <div class="form-group">
+      <label>👩‍🎓 学生名单 <span class="opt">选填，但建议填写</span></label>
+      <small>格式：班级,姓名；一行一个学生。也支持中文逗号。例如：3A,Lina</small>
+      <textarea id="inp-students" placeholder="3A,Lina&#10;3A,Omar&#10;3B,Sara"></textarea>
+      <div class="student-list-preview" id="student-list-preview"></div>
     </div>
 
     <div class="form-row">
@@ -452,6 +508,19 @@ body{
 <div class="studio-name">TEACHER LIU'S CHINESE LEARNING STUDIO</div>
 <span class="student-mole-icon">🐹</span>
     <h1>Whack-a-Mole!</h1>
+
+    <div id="task-info-box" class="task-info-box" style="display:none;"></div>
+
+    <div id="identity-panel" class="identity-panel hidden">
+      <label for="student-class-select">选择班级 / Select your class</label>
+      <select id="student-class-select" onchange="onStudentClassChange()">
+        <option value="">请选择班级</option>
+      </select>
+      <label for="student-name-select">选择姓名 / Select your name</label>
+      <select id="student-name-select">
+        <option value="">请先选择班级</option>
+      </select>
+    </div>
     <div class="word-chips" id="student-word-chips"></div>
 
     <div class="diff-section">
@@ -514,14 +583,37 @@ body{
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+// =============================================
+// SUPABASE / GAME ID
+// =============================================
+const SUPABASE_URL = "https://hpzjbhjehpxgalslvnqq.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwempiaGplaHB4Z2Fsc2x2bnFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMTA4NjUsImV4cCI6MjA5ODg4Njg2NX0.cHSe-udRguaJiPA1oAKwGBA5aFWzpGk_R5dYJsBa404";
+const supabaseClient = window.supabase
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+const GAME_KEY = "whack_a_mole";
+const GAME_NAME = "Whack-a-Mole";
+
+function ensureSupabaseReady() {
+  if (supabaseClient) return true;
+  alert('Supabase 连接库没有加载成功。请确认当前网络可以访问 cdn.jsdelivr.net，或把 @supabase/supabase-js 下载到本地后改成本地引用。');
+  return false;
+}
+
 // =============================================
 // STATE
 // =============================================
-let cfg = { targetWords:[], distractWords:[], time:60, speed:1800 };
+let cfg = { targetWords:[], distractWords:[], time:60, speed:1800, taskTitle:'', classData:[] };
 let score=0, combo=0, maxCombo=0, hits=0, misses=0;
 let timeLeft=60, roundNum=1, currentTarget='';
 let gameRunning=false;
+let gameStartAt=null;
+let resultSubmitted=false;
+let currentTask = null;
+let selectedClassName = '';
+let selectedStudentName = '';
 let timerInterval=null;
 let moleTimers=[];
 // moleStates[i]: true = mole is up, false = down
@@ -537,18 +629,24 @@ const HOLES=9;
 // =============================================
 document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(location.search);
-  if (params.has('g')) {
+  const taskId = params.get('taskId') || params.get('taskid') || params.get('task') || params.get('task_code');
+
+  if (taskId) {
+    isStudentMode = true;
+    showScreen('student-start');
+    showTaskLoading('正在加载任务...');
+    loadTaskFromSupabase(taskId);
+  } else if (params.has('g')) {
+    // Old share-link compatibility: supports previously generated ?g= links.
     try {
       const raw = JSON.parse(decodeURIComponent(escape(atob(params.get('g')))));
       cfg.targetWords  = raw.t  || [];
       cfg.distractWords= (raw.d && raw.d.length>0) ? raw.d : raw.t || [];
       cfg.time  = raw.time  || 60;
-      // speed will be chosen by student; store default from teacher (ignored now)
       cfg.speed = 1800;
+      cfg.classData = [];
       isStudentMode = true;
-      // populate word chips
-      const chips = document.getElementById('student-word-chips');
-      chips.innerHTML = cfg.targetWords.map(w=>`<span class="word-chip">${w}</span>`).join('');
+      renderStudentStart();
       showScreen('student-start');
     } catch(e) { showScreen('teacher'); }
   } else {
@@ -595,15 +693,148 @@ function parseWords(str) {
   return str.split(/[\s,，\n]+/).map(w=>w.trim()).filter(w=>w.length>0);
 }
 
+function parseStudentList(str) {
+  const lines = String(str || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const classMap = new Map();
+
+  lines.forEach(line => {
+    // Support: class,name  / class，name / class\tname
+    const parts = line.split(/[,，\t]+/).map(p => p.trim()).filter(Boolean);
+    if (parts.length < 2) return;
+    const className = parts[0];
+    const studentName = parts.slice(1).join(' ').trim();
+    if (!className || !studentName) return;
+    if (!classMap.has(className)) classMap.set(className, []);
+    const arr = classMap.get(className);
+    if (!arr.includes(studentName)) arr.push(studentName);
+  });
+
+  return Array.from(classMap.entries()).map(([className, students]) => ({ className, students }));
+}
+
+function buildTaskCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  let s = 't_';
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  for (let i = 0; i < bytes.length; i++) s += alphabet[bytes[i] % alphabet.length];
+  return s;
+}
+
+function showTaskLoading(message) {
+  const chips = document.getElementById('student-word-chips');
+  chips.innerHTML = `<div class="task-loading">${message}</div>`;
+}
+
+function renderStudentStart() {
+  const chips = document.getElementById('student-word-chips');
+  chips.innerHTML = cfg.targetWords.map(w=>`<span class="word-chip">${escapeHtml(w)}</span>`).join('');
+
+  const infoBox = document.getElementById('task-info-box');
+  if (currentTask) {
+    infoBox.style.display = 'block';
+    infoBox.innerHTML =
+      `<strong>${escapeHtml(currentTask.task_title || currentTask.game_name || GAME_NAME)}</strong><br>` +
+      `Task ID: ${escapeHtml(currentTask.task_code || '')}`;
+  } else {
+    infoBox.style.display = 'none';
+    infoBox.innerHTML = '';
+  }
+
+  renderIdentityPanel();
+}
+
+function renderIdentityPanel() {
+  const panel = document.getElementById('identity-panel');
+  const classSelect = document.getElementById('student-class-select');
+  const nameSelect = document.getElementById('student-name-select');
+  const classData = Array.isArray(cfg.classData) ? cfg.classData : [];
+
+  if (!classData.length) {
+    panel.classList.add('hidden');
+    selectedClassName = '';
+    selectedStudentName = '';
+    return;
+  }
+
+  panel.classList.remove('hidden');
+  classSelect.innerHTML = '<option value="">请选择班级</option>' +
+    classData.map(c => `<option value="${escapeAttr(c.className)}">${escapeHtml(c.className)}</option>`).join('');
+  nameSelect.innerHTML = '<option value="">请先选择班级</option>';
+}
+
+function onStudentClassChange() {
+  const className = document.getElementById('student-class-select').value;
+  const nameSelect = document.getElementById('student-name-select');
+  const classData = Array.isArray(cfg.classData) ? cfg.classData : [];
+  const found = classData.find(c => c.className === className);
+
+  if (!found) {
+    nameSelect.innerHTML = '<option value="">请先选择班级</option>';
+    return;
+  }
+
+  nameSelect.innerHTML = '<option value="">请选择姓名</option>' +
+    found.students.map(name => `<option value="${escapeAttr(name)}">${escapeHtml(name)}</option>`).join('');
+}
+
+async function loadTaskFromSupabase(taskCode) {
+  if (!ensureSupabaseReady()) {
+    showTaskLoading('Supabase 连接库没有加载成功，暂时无法读取任务。');
+    return;
+  }
+  try {
+    const cleanCode = String(taskCode || '').trim().replace(/[，。,.；;！!？?）)\]]+$/g, '');
+    const { data, error } = await supabaseClient
+      .from('tasks')
+      .select('*')
+      .eq('task_code', cleanCode)
+      .single();
+
+    if (error || !data) throw error || new Error('Task not found');
+
+    currentTask = data;
+    cfg = {
+      targetWords: Array.isArray(data.word_data?.targetWords) ? data.word_data.targetWords : [],
+      distractWords: Array.isArray(data.word_data?.distractWords) && data.word_data.distractWords.length
+        ? data.word_data.distractWords
+        : (Array.isArray(data.word_data?.targetWords) ? data.word_data.targetWords : []),
+      time: Number(data.settings?.time || 60),
+      speed: 1800,
+      taskTitle: data.task_title || '',
+      classData: Array.isArray(data.class_data) ? data.class_data : []
+    };
+
+    if (!cfg.targetWords.length) throw new Error('This task has no target words.');
+    renderStudentStart();
+  } catch (err) {
+    console.error(err);
+    showTaskLoading('任务加载失败。请检查 taskId 或原始链接是否正确。');
+  }
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, s => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[s]));
+}
+
+function escapeAttr(str) {
+  return escapeHtml(str).replace(/`/g, '&#96;');
+}
+
 function buildConfig() {
   const tWords = parseWords(document.getElementById('inp-target').value);
   if (tWords.length < 1) { alert('请至少输入1个目标词语！'); return null; }
   const dWords = parseWords(document.getElementById('inp-distract').value);
+  const classData = parseStudentList(document.getElementById('inp-students').value);
   return {
     targetWords:   tWords,
     distractWords: dWords.length>0 ? dWords : tWords,
     time:  parseInt(document.getElementById('inp-time').value),
-    speed: 1800  // teacher preview uses default; student picks their own
+    speed: 1800,  // teacher preview uses default; student picks their own
+    taskTitle: document.getElementById('inp-task-title').value.trim(),
+    classData
   };
 }
 
@@ -611,8 +842,8 @@ function previewGame() {
   const c = buildConfig(); if (!c) return;
   cfg = c;
   isPreviewMode = true;
-  const chips = document.getElementById('student-word-chips');
-  chips.innerHTML = cfg.targetWords.map(w => `<span class="word-chip">${w}</span>`).join('');
+  currentTask = null;
+  renderStudentStart();
   showScreen('student-start');
 }
 
@@ -627,18 +858,53 @@ function backToOrigin() {
   }
 }
 
-function openShareModal() {
+async function openShareModal() {
   const c = buildConfig(); if (!c) return;
-  // d: only encode if different from target words
-  const dArr = c.distractWords.join(',') === c.targetWords.join(',') ? [] : c.distractWords;
-  const raw = { t: c.targetWords, d: dArr, time: c.time };
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(raw))));
-//下面1行解决分享链接打开是教师界面而非游戏界面问题
-const url = location.href.split('?')[0] + '?g=' + encodeURIComponent(encoded);
+  if (!ensureSupabaseReady()) return;
 
-  document.getElementById('share-url-input').value = url;
-  document.getElementById('copy-confirm').textContent = '';
-  document.getElementById('modal-share').classList.add('open');
+  const taskCode = buildTaskCode();
+  const taskTitle = c.taskTitle || `${GAME_NAME} · ${new Date().toLocaleDateString()}`;
+  const wordData = {
+    targetWords: c.targetWords,
+    distractWords: c.distractWords
+  };
+  const settings = {
+    time: c.time,
+    speed: 1800
+  };
+
+  try {
+    const { data: userData } = await supabaseClient.auth.getUser();
+    const user = userData?.user || null;
+
+    const payload = {
+      task_code: taskCode,
+      creator_id: user ? user.id : null,
+      creator_type: user ? 'registered' : 'anonymous',
+      teacher_name: null,
+      game_key: GAME_KEY,
+      game_name: GAME_NAME,
+      task_title: taskTitle,
+      class_data: c.classData,
+      word_data: wordData,
+      settings,
+      source_url: location.href.split('?')[0]
+    };
+
+    const { error } = await supabaseClient.from('tasks').insert(payload);
+    if (error) throw error;
+
+    const url = location.href.split('?')[0] + '?taskId=' + encodeURIComponent(taskCode);
+    document.getElementById('share-url-input').value = url;
+    document.getElementById('copy-confirm').textContent = '';
+    const codeBox = document.getElementById('share-task-code');
+    codeBox.style.display = 'block';
+    codeBox.innerHTML = `Task ID: <strong>${escapeHtml(taskCode)}</strong><br>学生打开链接后将先选择班级和姓名。`;
+    document.getElementById('modal-share').classList.add('open');
+  } catch (err) {
+    console.error(err);
+    alert('任务链接生成失败。请检查 Supabase 表和 RLS policy 是否已设置好。\\n\\n' + (err?.message || err));
+  }
 }
 function closeShareModal() { document.getElementById('modal-share').classList.remove('open'); }
 function copyLink() {
@@ -660,6 +926,16 @@ function selectDiff(btn) {
 }
 
 function studentPlay() {
+  const classData = Array.isArray(cfg.classData) ? cfg.classData : [];
+  if (classData.length) {
+    selectedClassName = document.getElementById('student-class-select').value.trim();
+    selectedStudentName = document.getElementById('student-name-select').value.trim();
+    if (!selectedClassName || !selectedStudentName) {
+      alert('请先选择班级和姓名。');
+      return;
+    }
+  }
+
   initAudio();
   unlockSpeech();
   const active = document.querySelector('.diff-btn.active');
@@ -681,6 +957,8 @@ function studentPlay() {
 function launchGame() {
   score=0; combo=0; maxCombo=0; hits=0; misses=0;
   timeLeft = cfg.time; roundNum = 1; currentTarget = '';
+  gameStartAt = Date.now();
+  resultSubmitted = false;
   gameRunning = false;
   moleTimers.forEach(t=>clearTimeout(t)); moleTimers=[];
   moleStates = new Array(HOLES).fill(false);
@@ -1000,6 +1278,8 @@ function endGame() {
 function showResult() {
   const total = hits + misses;
   const acc   = total > 0 ? Math.round(hits/total*100) : 0;
+  const durationSeconds = gameStartAt ? Math.max(1, Math.round((Date.now() - gameStartAt) / 1000)) : cfg.time;
+
   let emoji='💪', title='Keep Trying!';
   if      (score>=200){ emoji='🏆'; title='Perfect!';     }
   else if (score>=120){ emoji='🥇'; title='Excellent!';   }
@@ -1011,6 +1291,86 @@ function showResult() {
     `Correct: <strong>${hits}</strong>&nbsp;|&nbsp;Wrong: <strong>${misses}</strong><br>`+
     `Accuracy: <strong>${acc}%</strong>&nbsp;|&nbsp;Best Combo: <strong>${maxCombo}</strong>`;
   document.getElementById('screen-result').style.display = 'flex';
+
+  submitResultIfNeeded({
+    score,
+    accuracy: acc,
+    durationSeconds,
+    hits,
+    misses,
+    maxCombo,
+    title
+  });
+}
+
+async function submitResultIfNeeded(result) {
+  if (resultSubmitted || !currentTask?.task_code) return;
+  if (!supabaseClient) {
+    console.warn('Supabase client is not ready; result was not submitted.');
+    return;
+  }
+  resultSubmitted = true;
+
+  const className = selectedClassName || '';
+  const studentName = selectedStudentName || '';
+
+  try {
+    const basePayload = {
+      task_id: currentTask.id || null,
+      task_code: currentTask.task_code,
+      game_key: GAME_KEY,
+      class_name: className,
+      student_name: studentName,
+      score: result.score,
+      accuracy: result.accuracy,
+      duration_seconds: result.durationSeconds,
+      result_data: {
+        hits: result.hits,
+        misses: result.misses,
+        maxCombo: result.maxCombo,
+        title: result.title,
+        targetWords: cfg.targetWords,
+        difficultySpeed: cfg.speed
+      },
+      completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    // Read first, then update or insert. This avoids duplicate rows without depending on upsert.
+    let query = supabaseClient
+      .from('task_results')
+      .select('id, attempts')
+      .eq('task_code', currentTask.task_code)
+      .eq('game_key', GAME_KEY);
+
+    if (className) query = query.eq('class_name', className); else query = query.is('class_name', null);
+    if (studentName) query = query.eq('student_name', studentName); else query = query.is('student_name', null);
+
+    const { data: existing, error: readError } = await query.maybeSingle();
+    if (readError) throw readError;
+
+    if (existing) {
+      const { error: updateError } = await supabaseClient
+        .from('task_results')
+        .update({
+          ...basePayload,
+          attempts: (existing.attempts || 1) + 1
+        })
+        .eq('id', existing.id);
+      if (updateError) throw updateError;
+    } else {
+      const { error: insertError } = await supabaseClient
+        .from('task_results')
+        .insert({
+          ...basePayload,
+          attempts: 1
+        });
+      if (insertError) throw insertError;
+    }
+  } catch (err) {
+    console.error('Result submit failed:', err);
+    // Do not block the result screen; student can still see their score.
+  }
 }
 
 function playAgain() {
