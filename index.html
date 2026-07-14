@@ -51,12 +51,12 @@ body{
 .form-row{display:flex;gap:14px;margin-bottom:20px;}
 .form-col{flex:1;}
 .form-col label{display:block;font-weight:700;color:#222;font-size:0.93rem;margin-bottom:6px;}
-.form-col select{
+.form-col select,.form-col input{
   width:100%;border:2px solid #e0e0e0;border-radius:10px;padding:9px 12px;
   font-size:0.9rem;font-family:'Noto Sans SC',sans-serif;
   outline:none;background:#fff;color:#222;transition:border-color 0.2s;
 }
-.form-col select:focus{border-color:#43A047;}
+.form-col select:focus,.form-col input:focus{border-color:#43A047;}
 .btn-group{display:flex;gap:11px;}
 .btn-preview,.btn-share{
   flex:1;border:none;border-radius:12px;padding:14px;
@@ -148,6 +148,12 @@ body{
   background:#fff;border-radius:18px;padding:18px;margin-top:14px;color:#2E7D32;
   box-shadow:0 4px 18px rgba(0,0,0,0.08);font-weight:700;
 }
+.task-loading.blocked{
+  background:#FFF1F1;border:1px solid #FFCDD2;color:#B71C1C;line-height:1.65;white-space:pre-line;
+}
+.task-state-line{margin-top:5px;font-size:0.8rem;color:#607D61;}
+.task-state-active{color:#2E7D32;font-weight:700;}
+.task-state-closed,.task-state-expired{color:#C62828;font-weight:700;}
 .share-code{
   background:#E8F5E9;border:1px solid #A5D6A7;border-radius:9px;
   padding:9px 12px;margin:9px 0 12px;color:#1B5E20;font-size:0.82rem;word-break:break-all;
@@ -506,6 +512,10 @@ body{
           <option value="120">120秒（挑战）</option>
         </select>
       </div>
+      <div class="form-col">
+        <label>📅 截止日期 <span class="opt">选填</span></label>
+        <input id="inp-deadline" type="date" />
+      </div>
     </div>
 
     <div class="btn-group">
@@ -536,7 +546,7 @@ body{
     </div>
     <div class="word-chips" id="student-word-chips"></div>
 
-    <div class="diff-section">
+    <div class="diff-section" id="diff-section">
       <p class="diff-label">Choose mode:</p>
       <div class="diff-btns">
         <button class="diff-btn" data-speed="2400" onclick="selectDiff(this)">🐢 Slow</button>
@@ -545,7 +555,7 @@ body{
       </div>
     </div>
 
-    <button class="btn-play" onclick="studentPlay()">▶ &nbsp;Play Now!</button>
+    <button class="btn-play" id="student-play-btn" onclick="studentPlay()">▶ &nbsp;Play Now!</button>
   </div>
 </div>
 
@@ -597,76 +607,25 @@ body{
   </div>
 </div>
 
+<script src="./js/supabase-config.js"></script>
+<script src="./js/task-system.js"></script>
 <script>
 // =============================================
-// SUPABASE / GAME ID
+// GAME ID / TASK SYSTEM
 // =============================================
-const SUPABASE_URL = "https://hpzjbhjehpxgalslvnqq.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwempiaGplaHB4Z2Fsc2x2bnFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMTA4NjUsImV4cCI6MjA5ODg4Njg2NX0.cHSe-udRguaJiPA1oAKwGBA5aFWzpGk_R5dYJsBa404";
 const GAME_KEY = "whack_a_mole";
 const GAME_NAME = "Whack-a-Mole";
 
-// v3: Use Supabase REST API directly. This avoids the external supabase-js CDN,
-// so GitHub Pages can create/read tasks even when cdn.jsdelivr.net is blocked.
-function ensureSupabaseReady() {
-  if (SUPABASE_URL && SUPABASE_ANON_KEY) return true;
-  alert('Supabase URL 或 anon public key 缺失，暂时无法保存或读取任务。');
+function ensureTaskSystemReady() {
+  if (window.TaskSystem && TaskSystem.ensureReady()) return true;
+  alert('任务系统文件没有正确加载。请确认 index.html 与 js 文件夹一起上传。');
   return false;
-}
-
-function supabaseHeaders(extra = {}) {
-  return {
-    apikey: SUPABASE_ANON_KEY,
-    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-    'Content-Type': 'application/json',
-    ...extra
-  };
-}
-
-function restUrl(table, query = '') {
-  return `${SUPABASE_URL}/rest/v1/${table}${query ? '?' + query : ''}`;
-}
-
-function eqFilter(field, value) {
-  return `${encodeURIComponent(field)}=eq.${encodeURIComponent(value)}`;
-}
-
-async function restSelectOne(table, filters, select = '*') {
-  const query = [`select=${encodeURIComponent(select)}`, ...filters].join('&');
-  const res = await fetch(restUrl(table, query), { headers: supabaseHeaders() });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.message || data?.error || `Supabase select failed: ${res.status}`);
-  return Array.isArray(data) && data.length ? data[0] : null;
-}
-
-async function restInsert(table, payload) {
-  const res = await fetch(restUrl(table), {
-    method: 'POST',
-    headers: supabaseHeaders({ Prefer: 'return=minimal' }),
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.message || data?.error || `Supabase insert failed: ${res.status}`);
-  }
-}
-
-async function restUpdateById(table, id, payload) {
-  const res = await fetch(restUrl(table, eqFilter('id', id)), {
-    method: 'PATCH',
-    headers: supabaseHeaders({ Prefer: 'return=minimal' }),
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.message || data?.error || `Supabase update failed: ${res.status}`);
-  }
 }
 
 // =============================================
 // STATE
 // =============================================
-let cfg = { targetWords:[], distractWords:[], time:60, speed:1800, taskTitle:'', classData:[] };
+let cfg = { targetWords:[], distractWords:[], time:60, speed:1800, taskTitle:'', classData:[], expiresAt:null };
 let score=0, combo=0, maxCombo=0, hits=0, misses=0;
 let timeLeft=60, roundNum=1, currentTarget='';
 let gameRunning=false;
@@ -689,12 +648,16 @@ const HOLES=9;
 // BOOT
 // =============================================
 document.addEventListener('DOMContentLoaded', () => {
+  const deadlineInput = document.getElementById('inp-deadline');
+  if (deadlineInput) deadlineInput.min = new Date().toISOString().slice(0, 10);
+
   const params = new URLSearchParams(location.search);
   const taskId = params.get('taskId') || params.get('taskid') || params.get('task') || params.get('task_code');
 
   if (taskId) {
     isStudentMode = true;
     showScreen('student-start');
+    setTaskInteractionEnabled(false);
     showTaskLoading('正在加载任务...');
     loadTaskFromSupabase(taskId);
   } else if (params.has('g')) {
@@ -707,6 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
       cfg.speed = 1800;
       cfg.classData = [];
       isStudentMode = true;
+      setTaskInteractionEnabled(true);
       renderStudentStart();
       showScreen('student-start');
     } catch(e) { showScreen('teacher'); }
@@ -755,31 +719,30 @@ function parseWords(str) {
 }
 
 function parseStudentList(str) {
-  const lines = String(str || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const classMap = new Map();
-
-  lines.forEach(line => {
-    // Support: class,name  / class，name / class\tname
-    const parts = line.split(/[,，\t]+/).map(p => p.trim()).filter(Boolean);
-    if (parts.length < 2) return;
-    const className = parts[0];
-    const studentName = parts.slice(1).join(' ').trim();
-    if (!className || !studentName) return;
-    if (!classMap.has(className)) classMap.set(className, []);
-    const arr = classMap.get(className);
-    if (!arr.includes(studentName)) arr.push(studentName);
-  });
-
-  return Array.from(classMap.entries()).map(([className, students]) => ({ className, students }));
+  return TaskSystem.parseStudentList(str);
 }
 
 function buildTaskCode() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-  let s = 't_';
-  const bytes = new Uint8Array(12);
-  crypto.getRandomValues(bytes);
-  for (let i = 0; i < bytes.length; i++) s += alphabet[bytes[i] % alphabet.length];
-  return s;
+  return TaskSystem.generateTaskCode();
+}
+
+function setTaskInteractionEnabled(enabled) {
+  const playButton = document.getElementById('student-play-btn');
+  const diffSection = document.getElementById('diff-section');
+  if (playButton) {
+    playButton.disabled = !enabled;
+    playButton.style.opacity = enabled ? '1' : '0.45';
+    playButton.style.cursor = enabled ? 'pointer' : 'not-allowed';
+  }
+  if (diffSection) diffSection.style.display = enabled ? 'block' : 'none';
+}
+
+function showTaskBlocked(message) {
+  const chips = document.getElementById('student-word-chips');
+  chips.innerHTML = `<div class="task-loading blocked">${escapeHtml(message)}</div>`;
+  const panel = document.getElementById('identity-panel');
+  if (panel) panel.classList.add('hidden');
+  setTaskInteractionEnabled(false);
 }
 
 function showTaskLoading(message) {
@@ -793,16 +756,22 @@ function renderStudentStart() {
 
   const infoBox = document.getElementById('task-info-box');
   if (currentTask) {
+    const taskState = TaskSystem.getTaskState(currentTask);
+    const deadlineText = currentTask.expires_at
+      ? new Date(currentTask.expires_at).toLocaleString('zh-CN', { hour12:false })
+      : '无';
     infoBox.style.display = 'block';
     infoBox.innerHTML =
       `<strong>${escapeHtml(currentTask.task_title || currentTask.game_name || GAME_NAME)}</strong><br>` +
-      `Task ID: ${escapeHtml(currentTask.task_code || '')}`;
+      `Task ID: ${escapeHtml(currentTask.task_code || '')}<br>` +
+      `<span class="task-state-line">状态：<span class="task-state-${taskState.code}">${taskState.label}</span>　截止日期：${escapeHtml(deadlineText)}</span>`;
   } else {
     infoBox.style.display = 'none';
     infoBox.innerHTML = '';
   }
 
   renderIdentityPanel();
+  setTaskInteractionEnabled(true);
 }
 
 function renderIdentityPanel() {
@@ -840,17 +809,25 @@ function onStudentClassChange() {
 }
 
 async function loadTaskFromSupabase(taskCode) {
-  if (!ensureSupabaseReady()) {
-    showTaskLoading('Supabase 配置缺失，暂时无法读取任务。');
+  if (!ensureTaskSystemReady()) {
+    showTaskLoading('任务系统配置缺失，暂时无法读取任务。');
     return;
   }
-  try {
-    const cleanCode = String(taskCode || '').trim().replace(/[，。,.；;！!？?）)\]]+$/g, '');
-    const data = await restSelectOne('tasks', [eqFilter('task_code', cleanCode)], '*');
 
+  try {
+    const data = await TaskSystem.loadTask(taskCode);
     if (!data) throw new Error('Task not found');
 
     currentTask = data;
+    const taskState = TaskSystem.getTaskState(data);
+    if (!taskState.canPlay) {
+      const reason = taskState.code === 'closed'
+        ? 'This task has been closed by the teacher.\n该任务已由老师关闭。'
+        : 'This task has expired.\n该任务已超过截止日期。';
+      showTaskBlocked(reason);
+      return;
+    }
+
     cfg = {
       targetWords: Array.isArray(data.word_data?.targetWords) ? data.word_data.targetWords : [],
       distractWords: Array.isArray(data.word_data?.distractWords) && data.word_data.distractWords.length
@@ -859,14 +836,15 @@ async function loadTaskFromSupabase(taskCode) {
       time: Number(data.settings?.time || 60),
       speed: 1800,
       taskTitle: data.task_title || '',
-      classData: Array.isArray(data.class_data) ? data.class_data : []
+      classData: Array.isArray(data.class_data) ? data.class_data : [],
+      expiresAt: data.expires_at || null
     };
 
     if (!cfg.targetWords.length) throw new Error('This task has no target words.');
     renderStudentStart();
   } catch (err) {
     console.error(err);
-    showTaskLoading('任务加载失败。请检查 taskId 或原始链接是否正确。');
+    showTaskBlocked('任务加载失败。请检查 taskId 或原始链接是否正确。');
   }
 }
 
@@ -891,7 +869,8 @@ function buildConfig() {
     time:  parseInt(document.getElementById('inp-time').value),
     speed: 1800,  // teacher preview uses default; student picks their own
     taskTitle: document.getElementById('inp-task-title').value.trim(),
-    classData
+    classData,
+    expiresAt: TaskSystem.toDeadlineIso(document.getElementById('inp-deadline').value)
   };
 }
 
@@ -900,6 +879,7 @@ function previewGame() {
   cfg = c;
   isPreviewMode = true;
   currentTask = null;
+  setTaskInteractionEnabled(true);
   renderStudentStart();
   showScreen('student-start');
 }
@@ -916,22 +896,15 @@ function backToOrigin() {
 }
 
 async function openShareModal() {
-  const c = buildConfig(); if (!c) return;
-  if (!ensureSupabaseReady()) return;
+  const c = buildConfig();
+  if (!c) return;
+  if (!ensureTaskSystemReady()) return;
 
   const taskCode = buildTaskCode();
   const taskTitle = c.taskTitle || `${GAME_NAME} · ${new Date().toLocaleDateString()}`;
-  const wordData = {
-    targetWords: c.targetWords,
-    distractWords: c.distractWords
-  };
-  const settings = {
-    time: c.time,
-    speed: 1800
-  };
 
   try {
-    const payload = {
+    await TaskSystem.createTask({
       task_code: taskCode,
       creator_id: null,
       creator_type: 'anonymous',
@@ -940,25 +913,39 @@ async function openShareModal() {
       game_name: GAME_NAME,
       task_title: taskTitle,
       class_data: c.classData,
-      word_data: wordData,
-      settings,
+      word_data: {
+        targetWords: c.targetWords,
+        distractWords: c.distractWords
+      },
+      settings: {
+        time: c.time,
+        speed: 1800
+      },
+      status: 'active',
+      expires_at: c.expiresAt,
       source_url: location.href.split('?')[0]
-    };
-
-    await restInsert('tasks', payload);
+    });
 
     const url = location.href.split('?')[0] + '?taskId=' + encodeURIComponent(taskCode);
     document.getElementById('share-url-input').value = url;
     document.getElementById('copy-confirm').textContent = '';
+
     const codeBox = document.getElementById('share-task-code');
     if (codeBox) {
+      const deadlineText = c.expiresAt
+        ? new Date(c.expiresAt).toLocaleString('zh-CN', { hour12:false })
+        : '无';
       codeBox.style.display = 'block';
-      codeBox.innerHTML = `Task ID: <strong>${escapeHtml(taskCode)}</strong><br>学生打开链接后将先选择班级和姓名。`;
+      codeBox.innerHTML =
+        `Task ID: <strong>${escapeHtml(taskCode)}</strong><br>` +
+        `状态：进行中　截止日期：${escapeHtml(deadlineText)}<br>` +
+        `学生打开链接后将先选择班级和姓名。`;
     }
+
     document.getElementById('modal-share').classList.add('open');
   } catch (err) {
     console.error(err);
-    alert('任务链接生成失败。请检查 Supabase 表和 RLS policy 是否已设置好。\n\n' + (err?.message || err));
+    alert('任务链接生成失败。请检查 tasks 表、status 字段和 RLS policy。\n\n' + (err?.message || err));
   }
 }
 
@@ -982,6 +969,14 @@ function selectDiff(btn) {
 }
 
 function studentPlay() {
+  if (currentTask) {
+    const taskState = TaskSystem.getTaskState(currentTask);
+    if (!taskState.canPlay) {
+      alert(taskState.code === 'closed' ? '该任务已关闭。' : '该任务已过期。');
+      return;
+    }
+  }
+
   const classData = Array.isArray(cfg.classData) ? cfg.classData : [];
   if (classData.length) {
     selectedClassName = document.getElementById('student-class-select').value.trim();
@@ -1365,102 +1360,42 @@ function showResult() {
 
 async function submitResultIfNeeded(result) {
   if (resultSubmitted || !currentTask?.task_code) return;
-  if (!ensureSupabaseReady()) return;
+  if (!ensureTaskSystemReady()) return;
   resultSubmitted = true;
 
-  const className = selectedClassName || '';
-  const studentName = selectedStudentName || '';
-
   try {
-    const basePayload = {
-      task_id: currentTask.id || null,
-      task_code: currentTask.task_code,
-      game_key: GAME_KEY,
-      class_name: className,
-      student_name: studentName,
+    const latestTask = await TaskSystem.loadTask(currentTask.task_code);
+    if (latestTask) currentTask = latestTask;
+    const taskState = TaskSystem.getTaskState(currentTask);
+    if (!taskState.canPlay) {
+      console.warn('Result not submitted because task is no longer active.');
+      return;
+    }
+
+    await TaskSystem.submitBestResult({
+      task: currentTask,
+      gameKey: GAME_KEY,
+      className: selectedClassName || '',
+      studentName: selectedStudentName || '',
       score: result.score,
       accuracy: result.accuracy,
-      duration_seconds: result.durationSeconds,
-      result_data: {
+      durationSeconds: result.durationSeconds,
+      resultData: {
         hits: result.hits,
         misses: result.misses,
         maxCombo: result.maxCombo,
         title: result.title,
         targetWords: cfg.targetWords,
-        difficultySpeed: cfg.speed
-      },
-      completed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    const filters = [
-      eqFilter('task_code', currentTask.task_code),
-      eqFilter('game_key', GAME_KEY),
-      className ? eqFilter('class_name', className) : 'class_name=is.null',
-      studentName ? eqFilter('student_name', studentName) : 'student_name=is.null'
-    ];
-
-    const existing = await restSelectOne('task_results', filters, 'id,attempts,score,accuracy,duration_seconds,result_data,completed_at');
-
-    if (existing) {
-      const previousBestScore = Number(existing.score || 0);
-      const latestScore = Number(result.score || 0);
-      const keepLatestAsBest = latestScore >= previousBestScore;
-      const previousData = (existing.result_data && typeof existing.result_data === 'object') ? existing.result_data : {};
-      const nextAttempts = (existing.attempts || 1) + 1;
-
-      await restUpdateById('task_results', existing.id, {
-        ...basePayload,
-        // The main score columns keep the best attempt, not necessarily the latest attempt.
-        score: keepLatestAsBest ? result.score : existing.score,
-        accuracy: keepLatestAsBest ? result.accuracy : existing.accuracy,
-        duration_seconds: keepLatestAsBest ? result.durationSeconds : existing.duration_seconds,
-        result_data: {
-          ...previousData,
-          bestScore: keepLatestAsBest ? result.score : existing.score,
-          bestAccuracy: keepLatestAsBest ? result.accuracy : existing.accuracy,
-          bestDurationSeconds: keepLatestAsBest ? result.durationSeconds : existing.duration_seconds,
-          bestCompletedAt: keepLatestAsBest ? basePayload.completed_at : (previousData.bestCompletedAt || existing.completed_at),
-          latestScore: result.score,
-          latestAccuracy: result.accuracy,
-          latestDurationSeconds: result.durationSeconds,
-          latestHits: result.hits,
-          latestMisses: result.misses,
-          latestMaxCombo: result.maxCombo,
-          latestTitle: result.title,
-          latestCompletedAt: basePayload.completed_at,
-          targetWords: cfg.targetWords,
-          difficultySpeed: cfg.speed
-        },
-        attempts: nextAttempts,
-        // completed_at always records the latest completion time.
-        completed_at: basePayload.completed_at,
-        updated_at: basePayload.updated_at
-      });
-    } else {
-      await restInsert('task_results', {
-        ...basePayload,
-        result_data: {
-          ...basePayload.result_data,
-          bestScore: result.score,
-          bestAccuracy: result.accuracy,
-          bestDurationSeconds: result.durationSeconds,
-          bestCompletedAt: basePayload.completed_at,
-          latestScore: result.score,
-          latestAccuracy: result.accuracy,
-          latestDurationSeconds: result.durationSeconds,
-          latestHits: result.hits,
-          latestMisses: result.misses,
-          latestMaxCombo: result.maxCombo,
-          latestTitle: result.title,
-          latestCompletedAt: basePayload.completed_at
-        },
-        attempts: 1
-      });
-    }
+        difficultySpeed: cfg.speed,
+        latestHits: result.hits,
+        latestMisses: result.misses,
+        latestMaxCombo: result.maxCombo,
+        latestTitle: result.title
+      }
+    });
   } catch (err) {
     console.error('Result submit failed:', err);
-    // Do not block the result screen; student can still see their score.
+    // Do not block the result screen; the student can still see the score.
   }
 }
 
