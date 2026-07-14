@@ -456,7 +456,7 @@ body{
 
     <div class="form-group">
       <label>📝 任务标题 <span class="opt">选填</span></label>
-      <small>用于后续在门户网页 A 的数据统计模块中识别任务</small>
+      <small>用于后续在门户网页的数据统计模块中识别任务</small>
       <textarea id="inp-task-title" placeholder="例：3A 水果词语复习" style="min-height:48px;"></textarea>
     </div>
 
@@ -583,23 +583,70 @@ body{
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // =============================================
 // SUPABASE / GAME ID
 // =============================================
 const SUPABASE_URL = "https://hpzjbhjehpxgalslvnqq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwempiaGplaHB4Z2Fsc2x2bnFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMTA4NjUsImV4cCI6MjA5ODg4Njg2NX0.cHSe-udRguaJiPA1oAKwGBA5aFWzpGk_R5dYJsBa404";
-const supabaseClient = window.supabase
-  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
 const GAME_KEY = "whack_a_mole";
 const GAME_NAME = "Whack-a-Mole";
 
+// v3: Use Supabase REST API directly. This avoids the external supabase-js CDN,
+// so GitHub Pages can create/read tasks even when cdn.jsdelivr.net is blocked.
 function ensureSupabaseReady() {
-  if (supabaseClient) return true;
-  alert('Supabase 连接库没有加载成功。请确认当前网络可以访问 cdn.jsdelivr.net，或把 @supabase/supabase-js 下载到本地后改成本地引用。');
+  if (SUPABASE_URL && SUPABASE_ANON_KEY) return true;
+  alert('Supabase URL 或 anon public key 缺失，暂时无法保存或读取任务。');
   return false;
+}
+
+function supabaseHeaders(extra = {}) {
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    'Content-Type': 'application/json',
+    ...extra
+  };
+}
+
+function restUrl(table, query = '') {
+  return `${SUPABASE_URL}/rest/v1/${table}${query ? '?' + query : ''}`;
+}
+
+function eqFilter(field, value) {
+  return `${encodeURIComponent(field)}=eq.${encodeURIComponent(value)}`;
+}
+
+async function restSelectOne(table, filters, select = '*') {
+  const query = [`select=${encodeURIComponent(select)}`, ...filters].join('&');
+  const res = await fetch(restUrl(table, query), { headers: supabaseHeaders() });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.message || data?.error || `Supabase select failed: ${res.status}`);
+  return Array.isArray(data) && data.length ? data[0] : null;
+}
+
+async function restInsert(table, payload) {
+  const res = await fetch(restUrl(table), {
+    method: 'POST',
+    headers: supabaseHeaders({ Prefer: 'return=minimal' }),
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.message || data?.error || `Supabase insert failed: ${res.status}`);
+  }
+}
+
+async function restUpdateById(table, id, payload) {
+  const res = await fetch(restUrl(table, eqFilter('id', id)), {
+    method: 'PATCH',
+    headers: supabaseHeaders({ Prefer: 'return=minimal' }),
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.message || data?.error || `Supabase update failed: ${res.status}`);
+  }
 }
 
 // =============================================
@@ -780,18 +827,14 @@ function onStudentClassChange() {
 
 async function loadTaskFromSupabase(taskCode) {
   if (!ensureSupabaseReady()) {
-    showTaskLoading('Supabase 连接库没有加载成功，暂时无法读取任务。');
+    showTaskLoading('Supabase 配置缺失，暂时无法读取任务。');
     return;
   }
   try {
     const cleanCode = String(taskCode || '').trim().replace(/[，。,.；;！!？?）)\]]+$/g, '');
-    const { data, error } = await supabaseClient
-      .from('tasks')
-      .select('*')
-      .eq('task_code', cleanCode)
-      .single();
+    const data = await restSelectOne('tasks', [eqFilter('task_code', cleanCode)], '*');
 
-    if (error || !data) throw error || new Error('Task not found');
+    if (!data) throw new Error('Task not found');
 
     currentTask = data;
     cfg = {
@@ -874,13 +917,10 @@ async function openShareModal() {
   };
 
   try {
-    const { data: userData } = await supabaseClient.auth.getUser();
-    const user = userData?.user || null;
-
     const payload = {
       task_code: taskCode,
-      creator_id: user ? user.id : null,
-      creator_type: user ? 'registered' : 'anonymous',
+      creator_id: null,
+      creator_type: 'anonymous',
       teacher_name: null,
       game_key: GAME_KEY,
       game_name: GAME_NAME,
@@ -891,8 +931,7 @@ async function openShareModal() {
       source_url: location.href.split('?')[0]
     };
 
-    const { error } = await supabaseClient.from('tasks').insert(payload);
-    if (error) throw error;
+    await restInsert('tasks', payload);
 
     const url = location.href.split('?')[0] + '?taskId=' + encodeURIComponent(taskCode);
     document.getElementById('share-url-input').value = url;
@@ -903,9 +942,10 @@ async function openShareModal() {
     document.getElementById('modal-share').classList.add('open');
   } catch (err) {
     console.error(err);
-    alert('任务链接生成失败。请检查 Supabase 表和 RLS policy 是否已设置好。\\n\\n' + (err?.message || err));
+    alert('任务链接生成失败。请检查 Supabase 表和 RLS policy 是否已设置好。\n\n' + (err?.message || err));
   }
 }
+
 function closeShareModal() { document.getElementById('modal-share').classList.remove('open'); }
 function copyLink() {
   const inp = document.getElementById('share-url-input');
@@ -1305,10 +1345,7 @@ function showResult() {
 
 async function submitResultIfNeeded(result) {
   if (resultSubmitted || !currentTask?.task_code) return;
-  if (!supabaseClient) {
-    console.warn('Supabase client is not ready; result was not submitted.');
-    return;
-  }
+  if (!ensureSupabaseReady()) return;
   resultSubmitted = true;
 
   const className = selectedClassName || '';
@@ -1336,36 +1373,25 @@ async function submitResultIfNeeded(result) {
       updated_at: new Date().toISOString()
     };
 
-    // Read first, then update or insert. This avoids duplicate rows without depending on upsert.
-    let query = supabaseClient
-      .from('task_results')
-      .select('id, attempts')
-      .eq('task_code', currentTask.task_code)
-      .eq('game_key', GAME_KEY);
+    const filters = [
+      eqFilter('task_code', currentTask.task_code),
+      eqFilter('game_key', GAME_KEY),
+      className ? eqFilter('class_name', className) : 'class_name=is.null',
+      studentName ? eqFilter('student_name', studentName) : 'student_name=is.null'
+    ];
 
-    if (className) query = query.eq('class_name', className); else query = query.is('class_name', null);
-    if (studentName) query = query.eq('student_name', studentName); else query = query.is('student_name', null);
-
-    const { data: existing, error: readError } = await query.maybeSingle();
-    if (readError) throw readError;
+    const existing = await restSelectOne('task_results', filters, 'id,attempts');
 
     if (existing) {
-      const { error: updateError } = await supabaseClient
-        .from('task_results')
-        .update({
-          ...basePayload,
-          attempts: (existing.attempts || 1) + 1
-        })
-        .eq('id', existing.id);
-      if (updateError) throw updateError;
+      await restUpdateById('task_results', existing.id, {
+        ...basePayload,
+        attempts: (existing.attempts || 1) + 1
+      });
     } else {
-      const { error: insertError } = await supabaseClient
-        .from('task_results')
-        .insert({
-          ...basePayload,
-          attempts: 1
-        });
-      if (insertError) throw insertError;
+      await restInsert('task_results', {
+        ...basePayload,
+        attempts: 1
+      });
     }
   } catch (err) {
     console.error('Result submit failed:', err);
